@@ -1,32 +1,108 @@
 <template>
-  <div id="app">
-    <div id="nav">
-      <router-link to="/">Home</router-link> |
-      <router-link to="/about">About</router-link>
-    </div>
-    <router-view/>
-  </div>
+  <v-app>
+    <v-app-bar app color="primary" dark>
+      <v-spacer></v-spacer>
+    </v-app-bar>
+
+    <v-container>
+      <v-main>
+        <v-text-field v-model="nombre" label="nombre"></v-text-field>
+        <v-text-field v-model="edad" label="edad"></v-text-field>
+        <v-file-input
+          @change="previewImage"
+          accept="image/*"
+          label="File input"
+        ></v-file-input>
+        <v-btn depressed color="primary" @click="upload">
+          Subir al storage
+        </v-btn>
+        <div v-show="loading">
+          <h3>Registrando persona</h3>
+          <v-progress-linear
+            color="deep-purple accent-4"
+            indeterminate
+            rounded
+            height="6"
+          ></v-progress-linear>
+        </div>
+        <v-card
+          v-for="(persona, i) in personas"
+          :key="i"
+          class="mx-auto"
+          max-width="344"
+        >
+          <v-img :src="persona.data.imgSrc" height="200px"></v-img>
+
+          <v-card-title>
+            {{ persona.data.name }}
+          </v-card-title>
+
+          <v-card-subtitle>
+            {{ persona.data.edad }}
+          </v-card-subtitle>
+        </v-card>
+      </v-main>
+    </v-container>
+  </v-app>
 </template>
 
-<style lang="scss">
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-}
+<script>
+import firebase from "firebase";
+export default {
+  name: "App",
+  mounted() {
+    firebase
+      .firestore()
+      .collection("personas")
+      .onSnapshot((snapshot) => {
+        this.personas = [];
+        snapshot.forEach((doc) => {
+          this.personas.push({
+            id: doc.id,
+            data: doc.data(),
+          });
+        });
+      });
+  },
+  methods: {
+    previewImage(file) {
+      console.log(file);
+      this.imagen = file;
+    },
+    upload() {
+      this.loading = true;
+      firebase
+        .storage()
+        .ref(`/imagenes/${this.imagen.name}`)
+        .put(this.imagen)
+        .then((snapshot) => {
+          snapshot.ref.getDownloadURL().then((url) => {
+            console.log(url);
+            this.url = url;
 
-#nav {
-  padding: 30px;
+            firebase
+              .firestore()
+              .collection("personas")
+              .add({
+                name: this.nombre,
+                edad: this.edad,
+                imgSrc: this.url,
+              })
+              .then(() => {
+                this.loading = false;
+              });
+          });
+        });
+    },
+  },
 
-  a {
-    font-weight: bold;
-    color: #2c3e50;
-
-    &.router-link-exact-active {
-      color: #42b983;
-    }
-  }
-}
-</style>
+  data: () => ({
+    imagen: "",
+    url: "",
+    nombre: "",
+    edad: "",
+    personas: [],
+    loading: false,
+  }),
+};
+</script>
